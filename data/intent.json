@@ -112,9 +112,11 @@
         "please help",
         "I need a hand",
         "could you help me with this",
-        "how do I",
-        "what should I do",
-        "can you guide me"
+        "need advice",
+        "need guidance",
+        "can you guide me",
+        "stuck on this problem",
+        "help me solve this"
       ],
       "responses": [
         "Sure — tell me what's going on and I'll do my best to help.",
@@ -159,7 +161,7 @@
         "want to chat",
         "let's chat",
         "got any news",
-        "what's happening",
+        "what's happening today",
         "feel like talking",
         "just chatting"
       ],
@@ -199,12 +201,13 @@
         "what can you do",
         "how can you help me",
         "what are your skills",
-        "what do you know",
-        "what can you help with",
+        "list your abilities",
+        "show your features",
+        "what tasks can you handle",
+        "describe your capabilities",
         "are you able to",
         "show me what you can do",
         "examples of what you can do",
-        "what are your features",
         "what services do you provide",
         "how are you useful",
         "tell me your capabilities"
