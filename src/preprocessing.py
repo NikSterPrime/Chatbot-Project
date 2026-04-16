@@ -1,9 +1,8 @@
 import nltk
 import string
 from nltk.corpus import stopwords
-from model import vectoriseText
 
-nltk.download('stopwords')
+nltk.download("stopwords", quiet=True)
 
 stop_words = set(stopwords.words('english'))
 
@@ -13,6 +12,3 @@ def clean_texts(text):
     words = text.split()
     words = [word for word in words if word not in stop_words]
     return " ".join(words)
-
-
-texts = [clean_texts(text) for text in texts]

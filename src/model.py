@@ -1,26 +1,42 @@
+import numpy as np
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from utils import label
+
+from utils import exact_pattern_to_tag, labels, texts
 from preprocessing import clean_texts
 
-vectoriser = TfidfVectorizer()
-X = []
-y = []
-def vectoriseText(texts):
-    X = vectoriser.fit_transform(texts)
-    y = label
+vectoriser = TfidfVectorizer(ngram_range=(1, 2))
+cleaned_texts = [clean_texts(text) for text in texts]
+X = vectoriser.fit_transform(cleaned_texts)
+y = labels
 
-    print(X.shape)
-
-model = LogisticRegression()
+model = LogisticRegression(max_iter=1000, class_weight="balanced")
 model.fit(X,y)
 
-def predict_intent(text):
-    text = clean_texts(text)
-    vector = vectoriser.transform([text])
-    prediction = model.predict(vector)
-    return prediction[0]
+def predict_intent_details(text):
+    cleaned = clean_texts(text)
 
-print(predict_intent("Hello"))
-print(predict_intent("I feel sad"))
+    if not cleaned:
+        return "fallback", 0.0, 0.0
+
+    if cleaned in exact_pattern_to_tag:
+        return exact_pattern_to_tag[cleaned], 1.0, 1.0
+
+    vector = vectoriser.transform([cleaned])
+
+    probs = model.predict_proba(vector)[0]
+    index = np.argmax(probs)
+
+    sorted_probs = np.sort(probs)
+    confidence = float(probs[index])
+    intent = str(model.classes_[index])
+    margin = float(sorted_probs[-1] - sorted_probs[-2]) if len(sorted_probs) > 1 else confidence
+
+    return intent, confidence, margin
+
+
+def predict_intent_with_confidence(text):
+    intent, confidence, _ = predict_intent_details(text)
+    return intent, confidence
 
