@@ -50,10 +50,8 @@ src/main.py
 2. Install dependencies:
 
 ```bash
-pip install numpy scikit-learn nltk
+pip install numpy scikit-learn
 ```
-
-NLTK stopwords are downloaded automatically by the preprocessing module.
 
 ## Run
 
@@ -70,14 +68,23 @@ Type messages in the prompt. To quit, type one of:
 
 ## Model Details
 
-- Vectorizer: TF-IDF with unigram + bigram features
+- Vectorizer: TF-IDF with unigram + bigram + trigram features
 - Classifier: Logistic Regression
 - Exact-match shortcut: if cleaned input exactly matches a cleaned training pattern, the mapped intent is returned directly
 - Fallback logic: used when confidence or margin is below threshold
 
 Current thresholds in src/chatbot.py:
-- CONFIDENCE_THRESHOLD = 0.50
-- MARGIN_THRESHOLD = 0.08
+- CONFIDENCE_THRESHOLD = 0.52
+- MARGIN_THRESHOLD = 0.10
+
+## Recent Improvements
+
+- Expanded and cleaned intent dataset for broader, less-overlapping coverage
+- Added practical intents: `ask_time`, `ask_date`, `compliment`, `affirmation`, `negation`
+- Upgraded vectorizer and model settings for better text generalization
+- Added top-intent ranking support for smarter fallback suggestions
+- Added a more presentable chat UI with startup banner and command support
+- Added chat commands: `/help`, `/commands`, `/about`
 
 ## Notes for Better Accuracy
 

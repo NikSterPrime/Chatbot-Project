@@ -9,25 +9,21 @@
         "hey there",
         "hiya",
         "yo",
-        "what's up",
-        "morning",
         "good morning",
+        "good afternoon",
         "good evening",
         "howdy",
-        "sup",
-        "hiya!",
-        "hey buddy",
-        "greetings",
-        "helo",
-        "hw are you",
-        "thnks", 
-        "wht r u doing"
+        "nice to meet you",
+        "hello bot",
+        "hi assistant",
+        "wassup",
+        "heyo"
       ],
       "responses": [
-        "Hey! Great to see you — how can I help today?",
-        "Hi there! What would you like to talk about?",
-        "Hello! I'm here whenever you need me.",
-        "Hey! Ready when you are — what's up?"
+        "Hi there. Great to have you here.",
+        "Hello. How can I help today?",
+        "Hey. Ready when you are.",
+        "Welcome. What would you like to do?"
       ]
     },
     {
@@ -36,22 +32,22 @@
         "bye",
         "goodbye",
         "see you",
-        "see ya",
+        "see you later",
         "talk later",
         "ttyl",
         "catch you later",
         "gotta go",
-        "I'm off",
-        "I'm leaving",
+        "i am off",
+        "i am leaving",
         "take care",
         "farewell",
         "have a good one"
       ],
       "responses": [
-        "Bye! Take care and catch you later.",
-        "See you soon — have a great day!",
-        "Alright, I’m here whenever you want to chat again.",
-        "Take care! Don’t be a stranger."
+        "Goodbye. Take care.",
+        "See you soon.",
+        "Thanks for chatting. Come back anytime.",
+        "Take care and have a great day."
       ]
     },
     {
@@ -65,16 +61,16 @@
         "much appreciated",
         "appreciate it",
         "cheers",
-        "you're a life saver",
-        "that's helpful",
+        "you are a lifesaver",
+        "that is helpful",
         "thanks for that",
-        "thanks friend"
+        "thank you friend"
       ],
       "responses": [
-        "You're welcome — happy to help!",
-        "No worries, glad it helped.",
-        "Anytime! If you need more, just ask.",
-        "My pleasure — here when you need me."
+        "You are welcome.",
+        "Happy to help.",
+        "Anytime.",
+        "Glad that helped."
       ]
     },
     {
@@ -88,16 +84,15 @@
         "introduce yourself",
         "what do you do",
         "who made you",
-        "what's your purpose",
-        "what is your identity",
-        "who am I talking to",
+        "what is your purpose",
+        "who am i talking to",
         "are you a robot"
       ],
       "responses": [
-        "I'm a friendly AI assistant here to chat and help you out.",
-        "I'm a chatbot — think of me as a helpful conversation partner.",
-        "A virtual assistant at your service! I can chat, answer questions, and help where I can.",
-        "I don't have a body, but I do have lots of helpful info and a cheerful attitude."
+        "I am an AI chatbot built for friendly conversation and simple assistance.",
+        "I am a virtual assistant designed to chat and help.",
+        "You are talking to an intent-based chatbot.",
+        "I am here to answer and keep the conversation going."
       ]
     },
     {
@@ -105,94 +100,23 @@
       "patterns": [
         "help",
         "can you help me",
-        "I need help",
+        "i need help",
         "need assistance",
-        "I'm stuck",
+        "i am stuck",
         "can you assist",
         "please help",
-        "I need a hand",
+        "i need a hand",
         "could you help me with this",
         "need advice",
         "need guidance",
         "can you guide me",
-        "stuck on this problem",
         "help me solve this"
       ],
       "responses": [
-        "Sure — tell me what's going on and I'll do my best to help.",
-        "I'm here to help. What do you need assistance with?",
-        "Happy to help — give me a few more details, please.",
-        "Alright, let's work through it together. What part is confusing?"
-      ]
-    },
-    {
-      "tag": "user_feeling",
-      "patterns": [
-        "I'm feeling sad",
-        "I feel down",
-        "I'm stressed",
-        "I'm anxious",
-        "I'm happy",
-        "I'm excited",
-        "I'm lonely",
-        "I'm frustrated",
-        "I'm overwhelmed",
-        "I'm depressed",
-        "I'm exhausted",
-        "I'm having a bad day"
-      ],
-      "responses": [
-        "I'm sorry you're feeling that way — do you want to talk about it?",
-        "Thanks for sharing — I'm here to listen if you want to vent.",
-        "That sounds tough. Small steps can help — want some suggestions?",
-        "It's okay to feel like that — take your time, I'm with you.",
-        "I'm glad you told me. Would you like some tips to feel a bit better?"
-      ]
-    },
-    {
-      "tag": "casual_talk",
-      "patterns": [
-        "how are you",
-        "how's it going",
-        "what's new",
-        "what's up",
-        "how have you been",
-        "what are you up to",
-        "want to chat",
-        "let's chat",
-        "got any news",
-        "what's happening today",
-        "feel like talking",
-        "just chatting"
-      ],
-      "responses": [
-        "I'm doing well — thanks! What's on your mind today?",
-        "Feeling chatty? Me too. What shall we talk about?",
-        "Always up for a chat — tell me something about your day.",
-        "I'm here and ready to chat. What's new with you?"
-      ]
-    },
-    {
-      "tag": "asking_name",
-      "patterns": [
-        "what is your name",
-        "do you have a name",
-        "what should I call you",
-        "how should I call you",
-        "tell me your name",
-        "what's your name",
-        "can I call you",
-        "who am I talking to",
-        "your name please",
-        "give me your name",
-        "what do people call you",
-        "what do I call you"
-      ],
-      "responses": [
-        "You can call me your assistant — here to help anytime.",
-        "I don't have a personal name, but 'Assistant' works fine!",
-        "Whatever you like — I'm happy to be helpful.",
-        "Think of me as your friendly chatbot companion."
+        "Of course. Tell me what you need help with.",
+        "I am here for you. Share a bit more detail.",
+        "Happy to help. What part is confusing?",
+        "Let us work through it together."
       ]
     },
     {
@@ -208,39 +132,163 @@
         "are you able to",
         "show me what you can do",
         "examples of what you can do",
-        "what services do you provide",
         "how are you useful",
         "tell me your capabilities"
       ],
       "responses": [
-        "I can chat, answer questions, help brainstorm, and point you to resources.",
-        "I help with information, casual conversation, and friendly suggestions.",
-        "Ask me questions or tell me what you'd like to do, and I'll try to help.",
-        "From small talk to guidance, I aim to be helpful and cheerful."
+        "I can handle small talk, simple emotional support, jokes, and basic date or time requests.",
+        "You can ask me to chat, tell a joke, or ask what I can do.",
+        "I am best at conversation and lightweight assistance.",
+        "Try asking for help, a joke, or a friendly chat."
       ]
     },
     {
-      "tag": "fallback",
+      "tag": "asking_name",
       "patterns": [
-        "I don't understand",
-        "this makes no sense",
-        "what are you saying",
-        "can you repeat that",
-        "I don't get it",
-        "you lost me",
-        "say that again",
-        "I'm not following",
-        "could you clarify",
-        "that doesn't make sense",
-        "please explain that",
-        "I'm confused"
+        "what is your name",
+        "do you have a name",
+        "what should i call you",
+        "tell me your name",
+        "what is your nickname",
+        "can i call you assistant",
+        "your name please",
+        "what do people call you"
       ],
       "responses": [
-        "Sorry, I didn't follow that. Could you say it another way?",
-        "I think I missed something — can you rephrase that for me?",
-        "Hmm, I'm not sure I understand. Could you give a bit more detail?",
-        "I didn't catch that — try asking in a different way or give an example.",
-        "I'm still learning and didn't quite get that. Would you like to try explaining it differently?"
+        "You can call me Assistant.",
+        "Assistant works great for me.",
+        "I do not need a personal name, but Assistant is perfect.",
+        "Call me whatever is easiest for you."
+      ]
+    },
+    {
+      "tag": "casual_talk",
+      "patterns": [
+        "how are you",
+        "how is it going",
+        "what is new",
+        "how have you been",
+        "what are you up to",
+        "want to chat",
+        "let us chat",
+        "what is happening today",
+        "feel like talking",
+        "just chatting",
+        "sup"
+      ],
+      "responses": [
+        "I am doing well. How is your day going?",
+        "All good here. What is on your mind?",
+        "I am ready to chat. Tell me something interesting.",
+        "Doing great. What should we talk about?"
+      ]
+    },
+    {
+      "tag": "user_feeling",
+      "patterns": [
+        "i am feeling sad",
+        "i feel down",
+        "i am stressed",
+        "i am anxious",
+        "i am happy",
+        "i am excited",
+        "i am lonely",
+        "i am frustrated",
+        "i am overwhelmed",
+        "i am exhausted",
+        "i am having a bad day",
+        "i feel burnt out",
+        "i feel nervous",
+        "i feel better now"
+      ],
+      "responses": [
+        "Thanks for sharing that. I am here with you.",
+        "That sounds important. Want to talk more about it?",
+        "I hear you. Taking one small step can help.",
+        "You are not alone. I can listen.",
+        "I appreciate you opening up."
+      ]
+    },
+    {
+      "tag": "jokes",
+      "patterns": [
+        "tell me a joke",
+        "make me laugh",
+        "say something funny",
+        "got any jokes",
+        "joke please",
+        "do you know a joke",
+        "make me chuckle",
+        "cheer me up with a joke",
+        "i need a laugh",
+        "hit me with a joke",
+        "tell me something funny"
+      ],
+      "responses": [
+        "Why do programmers prefer dark mode? Because light attracts bugs.",
+        "I told my laptop I needed a break. It said, no problem, I will go to sleep.",
+        "Why was the computer cold? It left its Windows open.",
+        "Why do Java developers wear glasses? Because they do not C sharp.",
+        "I would tell a UDP joke, but you might not get it."
+      ]
+    },
+    {
+      "tag": "compliment",
+      "patterns": [
+        "you are awesome",
+        "you are great",
+        "you are smart",
+        "you are helpful",
+        "good job",
+        "well done",
+        "you are amazing",
+        "nice work"
+      ],
+      "responses": [
+        "Thank you. That means a lot.",
+        "I appreciate that.",
+        "Glad I could help.",
+        "Thanks. You are kind."
+      ]
+    },
+    {
+      "tag": "affirmation",
+      "patterns": [
+        "yes",
+        "yeah",
+        "yep",
+        "sure",
+        "okay",
+        "sounds good",
+        "let us do it",
+        "go ahead",
+        "correct"
+      ],
+      "responses": [
+        "Great. Let us continue.",
+        "Perfect.",
+        "Awesome. What next?",
+        "Good to hear."
+      ]
+    },
+    {
+      "tag": "negation",
+      "patterns": [
+        "no",
+        "nope",
+        "nah",
+        "not really",
+        "i do not think so",
+        "that is wrong",
+        "stop",
+        "cancel",
+        "never mind"
+      ],
+      "responses": [
+        "No problem. We can switch topics.",
+        "Understood. What would you like instead?",
+        "All right, we can pause that.",
+        "Okay. Let me know what you want to do next."
       ]
     },
     {
@@ -256,40 +304,45 @@
         "what next",
         "elaborate",
         "can you expand on that",
-        "please continue",
-        "could you go on"
+        "please continue"
       ],
       "responses": [
-        "Sure! Let me continue where I left off...",
-        "Here’s more information — happy to go deeper.",
-        "Alright, I’ll expand on that now.",
-        "Got it — here’s a bit more detail for you.",
-        "I can keep going — what part would you like me to focus on?"
+        "Sure. I can expand on that.",
+        "Happy to continue. Which part interests you most?",
+        "Absolutely. I can go deeper.",
+        "Let us keep going."
       ]
     },
     {
-      "tag": "jokes",
+      "tag": "ask_time",
       "patterns": [
-        "tell me a joke",
-        "make me laugh",
-        "say something funny",
-        "got any jokes",
-        "joke please",
-        "do you know a joke",
-        "make me chuckle",
-        "cheer me up with a joke",
-        "i need a laugh",
-        "funny",
-        "hit me with a joke",
-        "tell me something funny"
+        "what time is it",
+        "tell me the time",
+        "current time",
+        "can you give me the time",
+        "time now",
+        "what is the time right now"
       ],
       "responses": [
-        "Why don't scientists trust atoms? Because they make up everything!",
-        "I told my computer I needed a break, and it said 'No problem — I'll go to sleep.'",
-        "Why did the scarecrow win an award? Because he was outstanding in his field!",
-        "I'm reading a book about anti-gravity — it's impossible to put down!",
-        "Why did the tomato blush? Because it saw the salad dressing!",
-        "If I told you a UDP joke, would you get it? (No guarantee you'll get it.)"
+        "I can check the local time for you.",
+        "Sure, let me fetch the current time.",
+        "Here is the local time."
+      ]
+    },
+    {
+      "tag": "ask_date",
+      "patterns": [
+        "what is the date",
+        "what day is it",
+        "today date",
+        "tell me today date",
+        "which date is today",
+        "current date"
+      ],
+      "responses": [
+        "I can tell you today's date.",
+        "Sure, here is today's date.",
+        "Let me give you the current date."
       ]
     },
     {
@@ -297,14 +350,38 @@
       "patterns": [
         "what is the capital of france",
         "solve this math problem",
-        "write me code",
-        "what is 2 plus 2",
-        "who is the president of usa"
+        "write me full code",
+        "who is the president of usa",
+        "do my homework",
+        "hack this account"
       ],
       "responses": [
-        "I’m mainly designed for conversation, so I might not be the best for that.",
-        "That’s a bit outside what I can handle right now, but we can still chat!",
-        "I’m better at chatting than answering factual questions — want to talk about something else?"
+        "That is outside this chatbot's scope, but I can still have a useful conversation with you.",
+        "I am mainly designed for friendly chat and simple assistance.",
+        "I may not be the best tool for that request, but I can help in other ways."
+      ]
+    },
+    {
+      "tag": "fallback",
+      "patterns": [
+        "i do not understand",
+        "this makes no sense",
+        "what are you saying",
+        "can you repeat that",
+        "i do not get it",
+        "you lost me",
+        "say that again",
+        "i am not following",
+        "could you clarify",
+        "that does not make sense",
+        "please explain that",
+        "i am confused"
+      ],
+      "responses": [
+        "I am not fully sure I understood. Could you rephrase that?",
+        "I might have missed your meaning. Try saying it another way.",
+        "Could you add a bit more detail so I can help better?",
+        "I am still learning. Try a shorter or clearer message."
       ]
     }
   ]
