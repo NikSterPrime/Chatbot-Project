@@ -12,14 +12,16 @@ FALLBACK_TAG = "fallback"
 CONFIDENCE_THRESHOLD = 0.52
 MARGIN_THRESHOLD = 0.10
 EXIT_WORDS = {"exit", "quit", "bye", "goodbye", "see you", "later"}
-COMMANDS = {"/help", "/commands", "/about", "/memory", "/clear"}
+COMMANDS = {"/help", "/commands", "/about", "/memory", "/memory_full", "/clear"}
 PERSISTENT_MEMORY_PATH = Path(__file__).resolve().parents[1] / "data" / "session_memory.json"
 
 
 class ChatSessionMemory:
     def __init__(self, max_turns=12):
         self.max_turns = max_turns
-        self.turns = deque(maxlen=max_turns)
+        # Keep a rolling buffer of recent turns and summarize older turns
+        self.turns = deque()
+        self.summary_text = ""  # condensed summary of older parts of the conversation
         self.user_name = None
         self.favorite_topics = []
         self.reminders = []
@@ -34,12 +36,12 @@ class ChatSessionMemory:
         self._load_persistent()
 
     def remember_user(self, text, intent):
-        self.turns.append({"role": "user", "text": text, "intent": intent})
+        self._append_turn("user", text, intent)
         self.last_user_intent = intent
         self._extract_user_profile(text)
 
     def remember_bot(self, text, intent):
-        self.turns.append({"role": "bot", "text": text, "intent": intent})
+        self._append_turn("bot", text, intent)
         self.last_bot_intent = intent
 
     def clear(self):
@@ -52,6 +54,7 @@ class ChatSessionMemory:
         self.current_topic = None
         self.last_entities = {}
         self.clear_pending()
+        self.summary_text = ""
         self._save_persistent()
 
     def clear_pending(self):
@@ -74,7 +77,9 @@ class ChatSessionMemory:
 
     def summary(self):
         if not self.turns:
-            return "No session memory yet."
+            if not self.summary_text:
+                return "No session memory yet."
+            return f"Summary: {self.summary_text}"
 
         details = [f"Saved turns: {len(self.turns)}"]
         if self.user_name:
@@ -91,6 +96,8 @@ class ChatSessionMemory:
             details.append(f"Saved reminders: {len(self.reminders)}")
         if self.pending_task:
             details.append(f"Pending task: {self.pending_task}")
+        if self.summary_text:
+            details.append(f"Condensed history: {self.summary_text}")
         return " | ".join(details)
 
     def add_reminder(self, message, when_text):
@@ -117,12 +124,14 @@ class ChatSessionMemory:
         self.user_name = data.get("user_name")
         self.favorite_topics = data.get("favorite_topics", [])
         self.reminders = data.get("reminders", [])
+        self.summary_text = data.get("summary_text", "")
 
     def _save_persistent(self):
         payload = {
             "user_name": self.user_name,
             "favorite_topics": self.favorite_topics,
             "reminders": self.reminders,
+            "summary_text": self.summary_text,
         }
         try:
             PERSISTENT_MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -144,6 +153,32 @@ class ChatSessionMemory:
             if topic and topic not in self.favorite_topics:
                 self.favorite_topics.append(topic)
                 self._save_persistent()
+
+    def _append_turn(self, role, text, intent):
+        # Before appending, ensure we keep only `max_turns` recent turns.
+        # If we would exceed, pop the oldest and fold it into the condensed summary.
+        if len(self.turns) >= self.max_turns:
+            oldest = self.turns.popleft()
+            self._incremental_summarize(oldest)
+        self.turns.append({"role": role, "text": text, "intent": intent})
+
+    def _incremental_summarize(self, turn):
+        # Very small, deterministic summarizer: keep intent labels and short snippets.
+        intent = turn.get("intent") or "unknown"
+        snippet = turn.get("text", "").strip()
+        if len(snippet) > 60:
+            snippet = snippet[:57].rsplit(" ", 1)[0] + "..."
+        piece = f"[{turn.get('role')}:{intent}] {snippet}"
+
+        # Append to the running summary, keep it short.
+        if not self.summary_text:
+            self.summary_text = piece
+        else:
+            self.summary_text = f"{self.summary_text} | {piece}"
+
+        # Trim summary to a reasonable length
+        if len(self.summary_text) > 800:
+            self.summary_text = self.summary_text[-800:]
 
 
 def _render_welcome():
@@ -334,6 +369,12 @@ def chatbot():
                 print("> I am an intent-based chatbot powered by TF-IDF + Logistic Regression.")
             elif normalized == "/memory":
                 print(f"> {memory.summary()}")
+            elif normalized == "/memory_full":
+                # Show detailed recent turns and condensed history
+                print(f"> Summary: {memory.summary_text or 'No summary'}")
+                print("> Recent turns:")
+                for t in list(memory.turns):
+                    print(f"  - {t['role']}: ({t.get('intent')}) {t.get('text')}")
             elif normalized == "/clear":
                 memory.clear()
                 print("> Session memory cleared.")
