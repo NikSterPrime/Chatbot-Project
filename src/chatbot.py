@@ -10,29 +10,33 @@ from model import predict_intent_details, predict_intent_rankings
 from utils import intent_to_responses
 
 
-# Optional LangChain / VertexAI integration (initialized lazily)
+# Optional LangChain / Gemini integration (initialized lazily)
 try:
-    from langchain.llms import VertexAI
+    from langchain_google_genai import ChatGoogleGenerativeAI
 except Exception:
-    try:
-        from langchain import VertexAI
-    except Exception:
-        VertexAI = None
+    ChatGoogleGenerativeAI = None
+
+try:
+    from langchain_core.messages import HumanMessage
+except Exception:
+    HumanMessage = None
 
 
-def create_vertex_llm():
-    if VertexAI is None:
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+
+def create_gemini_llm():
+    if ChatGoogleGenerativeAI is None:
         return None
     try:
-        # VertexAI will pick up credentials from GOOGLE_APPLICATION_CREDENTIALS env var
-        return VertexAI()
+        return ChatGoogleGenerativeAI(model=GEMINI_MODEL_NAME, temperature=0.2)
     except Exception:
         return None
 
 
 def llm_update_summary(existing_summary, piece):
     """Return updated summary string using LLM, or None if unavailable/error."""
-    llm = create_vertex_llm()
+    llm = create_gemini_llm()
     if not llm:
         return None
     prompt = (
@@ -42,15 +46,20 @@ def llm_update_summary(existing_summary, piece):
         f"New turn:\n{piece}\n\nUpdated summary:"
     )
     try:
-        return str(llm(prompt)).strip()
-    except Exception:
+        if HumanMessage is not None:
+            result = llm.invoke([HumanMessage(content=prompt)])
+            return str(getattr(result, "content", result)).strip()
+        result = llm.invoke(prompt)
+        return str(getattr(result, "content", result)).strip()
+    except Exception as e:
+        # Silently fail; errors are usually due to missing/invalid API key
         return None
 
 FALLBACK_TAG = "fallback"
 CONFIDENCE_THRESHOLD = 0.52
 MARGIN_THRESHOLD = 0.10
 EXIT_WORDS = {"exit", "quit", "bye", "goodbye", "see you", "later"}
-COMMANDS = {"/help", "/commands", "/about", "/memory", "/memory_full", "/use_llm_summary", "/summarize_now", "/clear"}
+COMMANDS = {"/help", "/commands", "/about", "/memory", "/memory_full", "/use_llm_summary", "/summarize_now", "/test_gemini", "/clear"}
 PERSISTENT_MEMORY_PATH = Path(__file__).resolve().parents[1] / "data" / "session_memory.json"
 
 
@@ -236,7 +245,7 @@ class ChatSessionMemory:
         if self.use_llm_summary and self._llm is None:
             # create a cached llm instance if possible (lazy)
             try:
-                self._llm = create_vertex_llm()
+                self._llm = create_gemini_llm()
             except Exception:
                 self._llm = None
 
@@ -263,8 +272,9 @@ class ChatSessionMemory:
 def _render_welcome():
     print("=" * 64)
     print(" Chatbot Assistant")
-    print(" Type your message and press Enter.")
-    print(" Commands: /help, /about, /memory, /clear, exit")
+    print(" Local intent chatbot with optional Gemini memory summarization.")
+    print(" Type a message and press Enter.")
+    print(" Commands: /help, /commands, /about, /memory, /memory_full, /use_llm_summary, /summarize_now, /clear, exit")
     print("=" * 64)
 
 
@@ -276,7 +286,15 @@ def _render_help():
     print("- i feel stressed")
     print("- what time is it")
     print("- remind me to drink water at 7 pm")
-    print("Commands: /help, /about, /memory, /clear, exit")
+    print("Commands:")
+    print("- /help or /commands: show this help")
+    print("- /about: chatbot and model info")
+    print("- /memory: short session memory summary")
+    print("- /memory_full: recent turns plus condensed history")
+    print("- /use_llm_summary [off]: enable or disable Gemini summary mode")
+    print("- /summarize_now: summarize current turns with Gemini")
+    print("- /clear: clear session memory")
+    print("- exit, quit, bye: leave the chatbot")
 
 
 def _handle_special_intents(intent):
@@ -464,16 +482,35 @@ def chatbot():
                 else:
                     memory.enable_llm_summary(True)
                     if memory._llm is None:
-                        print("> LLM summary enabled but no LLM available or credentials missing.")
+                        print("> LLM summary enabled but Gemini is unavailable or GOOGLE_API_KEY is missing.")
                     else:
                         print("> LLM summarization enabled.")
+            elif normalized == "/test_gemini":
+                print("> Testing Gemini connection...")
+                print(f"> Gemini model: {GEMINI_MODEL_NAME}")
+                try:
+                    test_llm = create_gemini_llm()
+                    if test_llm is None:
+                        print("> Gemini: LLM object could not be created.")
+                    else:
+                        print("> Gemini: LLM object created successfully.")
+                        try:
+                            if HumanMessage is not None:
+                                test_result = test_llm.invoke([HumanMessage(content="Say OK")])
+                            else:
+                                test_result = test_llm.invoke("Say OK")
+                            print(f"> Gemini response: {getattr(test_result, 'content', test_result)}")
+                        except Exception as api_err:
+                            print(f"> Gemini API call failed: {type(api_err).__name__}: {api_err}")
+                except Exception as e:
+                    print(f"> Error during test: {type(e).__name__}: {e}")
             elif normalized == "/summarize_now":
                 out = memory.summarize_now_with_llm()
                 if out:
                     print("> Summary updated via LLM:")
                     print(f"> {out}")
                 else:
-                    print("> Could not summarize via LLM (disabled, missing credentials, or error).")
+                    print("> Could not summarize via LLM (disabled, missing API key, or error).")
             elif normalized == "/clear":
                 memory.clear()
                 print("> Session memory cleared.")

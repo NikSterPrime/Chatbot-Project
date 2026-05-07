@@ -51,7 +51,16 @@ src/main.py
 
 ```bash
 pip install numpy scikit-learn
+pip install langchain-google-genai
 ```
+
+3. Add your Gemini API key to `src/.env`:
+
+```bash
+GOOGLE_API_KEY=your_api_key_here
+```
+
+The chatbot uses Gemini only for the optional summary helper behind `/use_llm_summary` and `/summarize_now`. The main intent classifier still runs locally.
 
 ## Run
 
