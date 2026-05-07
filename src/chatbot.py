@@ -1,3 +1,4 @@
+import os
 import random
 import re
 import json
@@ -8,18 +9,60 @@ from pathlib import Path
 from model import predict_intent_details, predict_intent_rankings
 from utils import intent_to_responses
 
+
+# Optional LangChain / VertexAI integration (initialized lazily)
+try:
+    from langchain.llms import VertexAI
+except Exception:
+    try:
+        from langchain import VertexAI
+    except Exception:
+        VertexAI = None
+
+
+def create_vertex_llm():
+    if VertexAI is None:
+        return None
+    try:
+        # VertexAI will pick up credentials from GOOGLE_APPLICATION_CREDENTIALS env var
+        return VertexAI()
+    except Exception:
+        return None
+
+
+def llm_update_summary(existing_summary, piece):
+    """Return updated summary string using LLM, or None if unavailable/error."""
+    llm = create_vertex_llm()
+    if not llm:
+        return None
+    prompt = (
+        "You are a concise conversation summarizer. Update the existing brief summary "
+        "to include the new conversation turn. Keep the summary short (<=200 chars).\n\n"
+        f"Existing summary:\n{existing_summary or '[empty]'}\n\n"
+        f"New turn:\n{piece}\n\nUpdated summary:"
+    )
+    try:
+        return str(llm(prompt)).strip()
+    except Exception:
+        return None
+
 FALLBACK_TAG = "fallback"
 CONFIDENCE_THRESHOLD = 0.52
 MARGIN_THRESHOLD = 0.10
 EXIT_WORDS = {"exit", "quit", "bye", "goodbye", "see you", "later"}
-COMMANDS = {"/help", "/commands", "/about", "/memory", "/clear"}
+COMMANDS = {"/help", "/commands", "/about", "/memory", "/memory_full", "/use_llm_summary", "/summarize_now", "/clear"}
 PERSISTENT_MEMORY_PATH = Path(__file__).resolve().parents[1] / "data" / "session_memory.json"
 
 
 class ChatSessionMemory:
     def __init__(self, max_turns=12):
         self.max_turns = max_turns
-        self.turns = deque(maxlen=max_turns)
+        # Keep a rolling buffer of recent turns and summarize older turns
+        self.turns = deque()
+        self.summary_text = ""  # condensed summary of older parts of the conversation
+        # LLM summarization toggle and cached llm instance
+        self.use_llm_summary = False
+        self._llm = None
         self.user_name = None
         self.favorite_topics = []
         self.reminders = []
@@ -34,12 +77,12 @@ class ChatSessionMemory:
         self._load_persistent()
 
     def remember_user(self, text, intent):
-        self.turns.append({"role": "user", "text": text, "intent": intent})
+        self._append_turn("user", text, intent)
         self.last_user_intent = intent
         self._extract_user_profile(text)
 
     def remember_bot(self, text, intent):
-        self.turns.append({"role": "bot", "text": text, "intent": intent})
+        self._append_turn("bot", text, intent)
         self.last_bot_intent = intent
 
     def clear(self):
@@ -52,6 +95,7 @@ class ChatSessionMemory:
         self.current_topic = None
         self.last_entities = {}
         self.clear_pending()
+        self.summary_text = ""
         self._save_persistent()
 
     def clear_pending(self):
@@ -74,7 +118,9 @@ class ChatSessionMemory:
 
     def summary(self):
         if not self.turns:
-            return "No session memory yet."
+            if not self.summary_text:
+                return "No session memory yet."
+            return f"Summary: {self.summary_text}"
 
         details = [f"Saved turns: {len(self.turns)}"]
         if self.user_name:
@@ -91,6 +137,8 @@ class ChatSessionMemory:
             details.append(f"Saved reminders: {len(self.reminders)}")
         if self.pending_task:
             details.append(f"Pending task: {self.pending_task}")
+        if self.summary_text:
+            details.append(f"Condensed history: {self.summary_text}")
         return " | ".join(details)
 
     def add_reminder(self, message, when_text):
@@ -117,12 +165,14 @@ class ChatSessionMemory:
         self.user_name = data.get("user_name")
         self.favorite_topics = data.get("favorite_topics", [])
         self.reminders = data.get("reminders", [])
+        self.summary_text = data.get("summary_text", "")
 
     def _save_persistent(self):
         payload = {
             "user_name": self.user_name,
             "favorite_topics": self.favorite_topics,
             "reminders": self.reminders,
+            "summary_text": self.summary_text,
         }
         try:
             PERSISTENT_MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -144,6 +194,70 @@ class ChatSessionMemory:
             if topic and topic not in self.favorite_topics:
                 self.favorite_topics.append(topic)
                 self._save_persistent()
+
+    def _append_turn(self, role, text, intent):
+        # Before appending, ensure we keep only `max_turns` recent turns.
+        # If we would exceed, pop the oldest and fold it into the condensed summary.
+        if len(self.turns) >= self.max_turns:
+            oldest = self.turns.popleft()
+            self._incremental_summarize(oldest)
+        self.turns.append({"role": role, "text": text, "intent": intent})
+
+    def _incremental_summarize(self, turn):
+        # Very small, deterministic summarizer: keep intent labels and short snippets.
+        intent = turn.get("intent") or "unknown"
+        snippet = turn.get("text", "").strip()
+        if len(snippet) > 60:
+            snippet = snippet[:57].rsplit(" ", 1)[0] + "..."
+        piece = f"[{turn.get('role')}:{intent}] {snippet}"
+        # If LLM summarization is enabled and available, try to use it
+        if self.use_llm_summary:
+            try:
+                updated = llm_update_summary(self.summary_text, piece)
+                if updated:
+                    self.summary_text = updated
+                    return
+            except Exception:
+                # fall back to local summarizer below
+                pass
+
+        # Append to the running summary, keep it short.
+        if not self.summary_text:
+            self.summary_text = piece
+        else:
+            self.summary_text = f"{self.summary_text} | {piece}"
+
+        # Trim summary to a reasonable length
+        if len(self.summary_text) > 800:
+            self.summary_text = self.summary_text[-800:]
+
+    def enable_llm_summary(self, enable: bool):
+        self.use_llm_summary = bool(enable)
+        if self.use_llm_summary and self._llm is None:
+            # create a cached llm instance if possible (lazy)
+            try:
+                self._llm = create_vertex_llm()
+            except Exception:
+                self._llm = None
+
+    def summarize_now_with_llm(self):
+        """Summarize all current turns using the LLM and set summary_text. Returns summary or None."""
+        if not self.turns:
+            return None
+        if not self.use_llm_summary:
+            return None
+        # compose a short conversation transcript
+        transcript = []
+        for t in list(self.turns):
+            transcript.append(f"{t['role']}: {t.get('text','')} ")
+        combined = "\n".join(transcript[-(self.max_turns * 2):])
+        try:
+            updated = llm_update_summary(self.summary_text, combined)
+            if updated:
+                self.summary_text = updated
+                return updated
+        except Exception:
+            return None
 
 
 def _render_welcome():
@@ -334,6 +448,32 @@ def chatbot():
                 print("> I am an intent-based chatbot powered by TF-IDF + Logistic Regression.")
             elif normalized == "/memory":
                 print(f"> {memory.summary()}")
+            elif normalized == "/memory_full":
+                # Show detailed recent turns and condensed history
+                print(f"> Summary: {memory.summary_text or 'No summary'}")
+                print("> Recent turns:")
+                for t in list(memory.turns):
+                    print(f"  - {t['role']}: ({t.get('intent')}) {t.get('text')}")
+            elif normalized == "/use_llm_summary":
+                # Toggle LLM summarization on/off
+                # Accept forms: "/use_llm_summary" to toggle on, or "/use_llm_summary off" to disable
+                parts = user_input.strip().split()
+                if len(parts) > 1 and parts[1].lower() in {"off", "false", "0", "no"}:
+                    memory.enable_llm_summary(False)
+                    print("> LLM summarization disabled.")
+                else:
+                    memory.enable_llm_summary(True)
+                    if memory._llm is None:
+                        print("> LLM summary enabled but no LLM available or credentials missing.")
+                    else:
+                        print("> LLM summarization enabled.")
+            elif normalized == "/summarize_now":
+                out = memory.summarize_now_with_llm()
+                if out:
+                    print("> Summary updated via LLM:")
+                    print(f"> {out}")
+                else:
+                    print("> Could not summarize via LLM (disabled, missing credentials, or error).")
             elif normalized == "/clear":
                 memory.clear()
                 print("> Session memory cleared.")
