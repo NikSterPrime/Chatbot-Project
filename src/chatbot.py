@@ -442,11 +442,116 @@ def _continue_pending_flow(user_input, memory):
     memory.clear_pending()
     return f"Reminder saved: '{saved['message']}' at {saved['when']}."
 
-def give_response(intent):
+def _render_placeholders(text, memory):
+    # Replace known placeholders with session-aware values
+    name = None
+    if memory and getattr(memory, "user_name", None):
+        name = memory.user_name
+    else:
+        name = "Human"
+
+    # Common placeholder variants in datasets
+    replacements = {
+        "%%HUMAN%%": name,
+        "<HUMAN>": name,
+        "<HUMAN!>": name,
+        "<HUMAN>!": name,
+        "%%TIME%%": "",
+    }
+
+    out = text
+    for k, v in replacements.items():
+        out = out.replace(k, v)
+    return out
+
+
+def give_response(intent, memory=None):
     responses = intent_to_responses.get(intent) or intent_to_responses.get(FALLBACK_TAG, [])
     if not responses:
         return "I am not sure how to respond right now."
-    return random.choice(responses)
+    raw = random.choice(responses)
+    return _render_placeholders(raw, memory)
+
+
+def chat_once(user_input, memory):
+    pending_response = _continue_pending_flow(user_input, memory)
+    if pending_response:
+        memory.remember_user(user_input, "pending_input")
+        memory.remember_bot(pending_response, "set_reminder")
+        return {
+            "response": pending_response,
+            "intent": "set_reminder",
+            "confidence": 1.0,
+            "margin": 1.0,
+            "rankings": [("set_reminder", 1.0)],
+        }
+
+    profile_response = _handle_profile_intro(user_input, memory)
+    if profile_response:
+        memory.remember_user(user_input, "profile_update")
+        memory.remember_bot(profile_response, "profile_update")
+        return {
+            "response": profile_response,
+            "intent": "profile_update",
+            "confidence": 1.0,
+            "margin": 1.0,
+            "rankings": [("profile_update", 1.0)],
+        }
+
+    reminder_response = _start_reminder_flow(user_input, memory)
+    if reminder_response:
+        memory.remember_user(user_input, "set_reminder")
+        memory.remember_bot(reminder_response, "set_reminder")
+        return {
+            "response": reminder_response,
+            "intent": "set_reminder",
+            "confidence": 1.0,
+            "margin": 1.0,
+            "rankings": [("set_reminder", 1.0)],
+        }
+
+    intent, confidence, margin = predict_intent_details(user_input)
+    rankings = predict_intent_rankings(user_input, top_k=3)
+
+    special_response = _handle_special_intents(intent)
+    if special_response and confidence >= 0.45:
+        memory.set_topic(intent)
+        memory.remember_user(user_input, intent)
+        memory.remember_bot(special_response, intent)
+        return {
+            "response": special_response,
+            "intent": intent,
+            "confidence": confidence,
+            "margin": margin,
+            "rankings": rankings,
+        }
+
+    if confidence < CONFIDENCE_THRESHOLD or margin < MARGIN_THRESHOLD:
+        intent = FALLBACK_TAG
+        response = give_response(intent, memory) + _suggest_from_rankings(rankings)
+        memory.remember_user(user_input, intent)
+        memory.remember_bot(response, intent)
+        return {
+            "response": response,
+            "intent": intent,
+            "confidence": confidence,
+            "margin": margin,
+            "rankings": rankings,
+        }
+
+    if intent not in {"follow_up", "affirmation", "negation", "fallback"}:
+        memory.set_topic(intent)
+
+    response = _contextual_response(intent, memory) or give_response(intent, memory)
+    memory.remember_user(user_input, intent)
+    memory.remember_bot(response, intent)
+    return {
+        "response": response,
+        "intent": intent,
+        "confidence": confidence,
+        "margin": margin,
+        "rankings": rankings,
+    }
 
         
 def chatbot():
@@ -518,51 +623,6 @@ def chatbot():
                 _render_help()
             continue
 
-        pending_response = _continue_pending_flow(user_input, memory)
-        if pending_response:
-            memory.remember_user(user_input, "pending_input")
-            memory.remember_bot(pending_response, "set_reminder")
-            print(f"> {pending_response}")
-            continue
-
-        profile_response = _handle_profile_intro(user_input, memory)
-        if profile_response:
-            memory.remember_user(user_input, "profile_update")
-            memory.remember_bot(profile_response, "profile_update")
-            print(f"> {profile_response}")
-            continue
-
-        reminder_response = _start_reminder_flow(user_input, memory)
-        if reminder_response:
-            memory.remember_user(user_input, "set_reminder")
-            memory.remember_bot(reminder_response, "set_reminder")
-            print(f"> {reminder_response}")
-            continue
-        
-        intent, confidence, margin = predict_intent_details(user_input)
-        rankings = predict_intent_rankings(user_input, top_k=3)
-
-        special_response = _handle_special_intents(intent)
-        if special_response and confidence >= 0.45:
-            memory.set_topic(intent)
-            memory.remember_user(user_input, intent)
-            memory.remember_bot(special_response, intent)
-            print(f"> {special_response}")
-            continue
-
-        if confidence < CONFIDENCE_THRESHOLD or margin < MARGIN_THRESHOLD:
-            intent = FALLBACK_TAG
-            response = give_response(intent) + _suggest_from_rankings(rankings)
-            memory.remember_user(user_input, intent)
-            memory.remember_bot(response, intent)
-            print(f"> {response}")
-            continue
-        
-        if intent not in {"follow_up", "affirmation", "negation", "fallback"}:
-            memory.set_topic(intent)
-
-        response = _contextual_response(intent, memory) or give_response(intent)
-        memory.remember_user(user_input, intent)
-        memory.remember_bot(response, intent)
-        print(f"> {response}")
+        result = chat_once(user_input, memory)
+        print(f"> {result['response']}")
 
