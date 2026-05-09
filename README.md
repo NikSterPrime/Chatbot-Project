@@ -1,103 +1,153 @@
 # Chatbot Project
 
-Intent-based terminal chatbot built with TF-IDF + Logistic Regression.
+Context-aware intent chatbot (TF-IDF + Logistic Regression) with a React + Vite frontend and a FastAPI backend.
 
-## Overview
+This repository contains a local intent classifier and a small web UI that shows session-aware behavior (it can remember a name, keep a short session summary, and run a simple reminder flow). The project optionally integrates a Gemini/LLM summarizer — controlled via `src/.env`.
 
-This project loads training phrases from a JSON intent dataset, preprocesses text, trains an intent classifier, and responds in a chat loop.
+--
 
-The chatbot uses two safety signals before trusting a prediction:
-- Confidence: top class probability
-- Margin: difference between top and second-best class probabilities
+## Quick Links
 
-If either signal is low, the chatbot returns a fallback response.
+- Backend: FastAPI app at `src/web_api.py` (default: http://127.0.0.1:8000)
+- Frontend: Vite React app at `frontend/chatbot` (default: http://localhost:5173)
+- One-click launchers added to the repo root: `start-chatbot.bat` and `start-chatbot.ps1`
 
-## Project Structure
+--
 
-```text
-Chatbot_Project/
-├── README.md
-├── Documentation.md
-├── data/
-│   └── intent.json
-└── src/
-		├── chatbot.py
-		├── main.py
-		├── model.py
-		├── preprocessing.py
-		└── utils.py
-```
+## Requirements
 
-## How It Works
-
-```text
-src/main.py
-	-> src/chatbot.py
-	-> src/utils.py + data/intent.json
-	-> src/preprocessing.py
-	-> src/model.py
-	-> predict_intent_details()
-	-> intent selection
-	-> response selection
-	-> output
-	-> user input
-	-> repeat until exit
-```
+- Python 3.10+ (project uses a virtual environment at `.venv`)
+- Node.js + npm (for running the Vite frontend)
+- Optional: a Gemini / Google generative API key if you want LLM summarization
 
 ## Setup
 
-1. Create and activate a virtual environment.
-2. Install dependencies:
+1. Create and activate the virtual environment (Windows PowerShell):
 
-```bash
-pip install numpy scikit-learn
-pip install langchain-google-genai
+```powershell
+python -m venv .venv
+. .venv\Scripts\Activate.ps1
 ```
 
-3. Add your Gemini API key to `src/.env`:
+2. Install Python dependencies:
 
-```bash
+```powershell
+pip install -r requirements.txt
+```
+
+3. Install frontend dependencies:
+
+```powershell
+cd frontend\chatbot
+npm install
+cd ../..
+```
+
+4. (Optional) Add your Gemini/Google API key to `src/.env`:
+
+```
+# copy src/.env.example (or edit src/.env) and set your values
 GOOGLE_API_KEY=your_api_key_here
 ```
 
-The chatbot uses Gemini only for the optional summary helper behind `/use_llm_summary` and `/summarize_now`. The main intent classifier still runs locally.
+Important: `src/.env` is listed in `.gitignore` and should never be committed. See Security notes below.
 
-## Run
+--
 
-From the project root:
+## Run (single command)
 
-```bash
-python src/main.py
+From the repository root you can start both backend and frontend together using the provided Windows launchers:
+
+- Double-click `start-chatbot.bat` (recommended on Windows), or run from a terminal:
+
+```cmd
+start-chatbot.bat
 ```
 
-Type messages in the prompt. To quit, type one of:
-- exit
-- quit
-- bye
+- Or run the PowerShell launcher:
 
-## Model Details
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-chatbot.ps1
+```
 
-- Vectorizer: TF-IDF with unigram + bigram + trigram features
-- Classifier: Logistic Regression
-- Exact-match shortcut: if cleaned input exactly matches a cleaned training pattern, the mapped intent is returned directly
-- Fallback logic: used when confidence or margin is below threshold
+Both launchers open two console windows: one running the FastAPI backend using the project virtual environment Python, and one running the Vite frontend.
 
-Current thresholds in src/chatbot.py:
-- CONFIDENCE_THRESHOLD = 0.52
-- MARGIN_THRESHOLD = 0.10
+## Run (manual)
 
-## Recent Improvements
+If you prefer to run each piece separately:
 
-- Expanded and cleaned intent dataset for broader, less-overlapping coverage
-- Added practical intents: `ask_time`, `ask_date`, `compliment`, `affirmation`, `negation`
-- Upgraded vectorizer and model settings for better text generalization
-- Added top-intent ranking support for smarter fallback suggestions
-- Added a more presentable chat UI with startup banner and command support
-- Added chat commands: `/help`, `/commands`, `/about`
+Start backend (from repo root, with venv activated):
 
-## Notes for Better Accuracy
+```powershell
+.venv\Scripts\Activate.ps1
+python -m uvicorn src.web_api:app --reload --host 127.0.0.1 --port 8000
+```
 
-- Keep intent patterns distinct after preprocessing.
-- Avoid duplicate phrases across different intent tags.
-- Add more realistic user phrasings per intent.
-- Tune confidence and margin thresholds on real chat examples.
+Start frontend (from `frontend/chatbot`):
+
+```powershell
+cd frontend\chatbot
+npm run dev
+```
+
+Open the frontend URL (usually http://localhost:5173) and chat. The UI proxies `/api` requests to `http://127.0.0.1:8000` via Vite config.
+
+--
+
+## Commands (available from both CLI and frontend)
+
+The bot accepts slash commands. These are handled both in the interactive CLI and via the web UI:
+
+- `/help` or `/commands` — show help
+- `/about` — info about the bot
+- `/memory` — short session memory summary
+- `/memory_full` — condensed history + recent turns
+- `/use_llm_summary` — enable LLM summarization (requires valid `GOOGLE_API_KEY` in `src/.env`)
+- `/use_llm_summary off` — disable LLM summarization
+- `/summarize_now` — ask the LLM to summarize current turns
+- `/clear` — clear session memory
+
+If the frontend responds that the key is missing, confirm `src/.env` contains `GOOGLE_API_KEY` and restart the backend so the FastAPI process loads the new environment.
+
+--
+
+## Security & Git
+
+- `src/.env` contains private API keys and should NOT be published. This project includes `src/.env` in `.gitignore`.
+- The repository previously tracked the virtual environment; do not commit `.venv/`. If `.venv` is present in git history, remove it from the index and add it to `.gitignore`:
+
+```powershell
+git rm --cached src/.env || true
+git rm -r --cached .venv || true
+echo "src/.env" >> .gitignore
+echo ".venv/" >> .gitignore
+git add .gitignore
+git commit -m "Ignore local secrets and venv"
+```
+
+If a secret (like an API key) was ever pushed to a public remote, rotate the key immediately with the provider (Google Cloud console) and purge the secret from git history using tools like `git-filter-repo` or the BFG Repo-Cleaner. After a history rewrite, all collaborators must re-clone.
+
+--
+
+## Files of note
+
+- `src/web_api.py` — FastAPI app serving `/api/chat` and session memory endpoints
+- `src/chatbot.py` — core chatbot logic; command handling is now shared between CLI and API paths
+- `frontend/chatbot` — React + Vite frontend; see `vite.config.js` for the `/api` proxy
+- `start-chatbot.bat` and `start-chatbot.ps1` — launchers that start backend (using `.venv\Scripts\python.exe`) and frontend together
+
+--
+
+## Development notes
+
+- The backend exposes a `/api/health` endpoint for quick checks.
+- The project uses package-safe relative imports so you can run the API as `python -m uvicorn src.web_api:app` and still run `python src/main.py` for the CLI chatbot.
+
+--
+
+If you'd like, I can:
+
+- Add a small diagnostics endpoint that returns whether the LLM API key is loaded (boolean) so the frontend can display a more explicit message (no secrets returned).
+- Prepare git-filter-repo or BFG commands tailored to your repo to purge `src/.env` from history.
+
+Thanks — enjoy building! 🎯
