@@ -1,10 +1,18 @@
 from uuid import uuid4
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load local .env (kept in src/.env) so optional API keys become available to the web API process.
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from chatbot import ChatSessionMemory, chat_once
+try:
+    from .chatbot import ChatSessionMemory, chat_once
+except ImportError:
+    from chatbot import ChatSessionMemory, chat_once
 
 
 class ChatRequest(BaseModel):

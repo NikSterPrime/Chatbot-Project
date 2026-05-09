@@ -6,8 +6,12 @@ from collections import deque
 from datetime import datetime
 from pathlib import Path
 
-from model import predict_intent_details, predict_intent_rankings
-from utils import intent_to_responses
+try:
+    from .model import predict_intent_details, predict_intent_rankings
+    from .utils import intent_to_responses
+except ImportError:
+    from model import predict_intent_details, predict_intent_rankings
+    from utils import intent_to_responses
 
 
 # Optional LangChain / Gemini integration (initialized lazily)
@@ -297,6 +301,99 @@ def _render_help():
     print("- exit, quit, bye: leave the chatbot")
 
 
+def _handle_command(user_input, memory):
+    normalized = user_input.strip().lower()
+    if normalized not in COMMANDS and not normalized.startswith("/use_llm_summary"):
+        return None
+
+    if normalized in {"/help", "/commands"}:
+        lines = [
+            "> Try prompts like:",
+            "> - hi",
+            "> - what can you do",
+            "> - tell me a joke",
+            "> - i feel stressed",
+            "> - what time is it",
+            "> - remind me to drink water at 7 pm",
+            "> Commands:",
+            "> - /help or /commands: show this help",
+            "> - /about: chatbot and model info",
+            "> - /memory: short session memory summary",
+            "> - /memory_full: recent turns plus condensed history",
+            "> - /use_llm_summary [off]: enable or disable Gemini summary mode",
+            "> - /summarize_now: summarize current turns with Gemini",
+            "> - /clear: clear session memory",
+            "> - exit, quit, bye: leave the chatbot",
+        ]
+        return {"response": "\n".join(lines), "record": True}
+
+    if normalized == "/about":
+        return {"response": "> I am an intent-based chatbot powered by TF-IDF + Logistic Regression.", "record": True}
+
+    if normalized == "/memory":
+        return {"response": f"> {memory.summary()}", "record": True}
+
+    if normalized == "/memory_full":
+        lines = [f"> Summary: {memory.summary_text or 'No summary'}", "> Recent turns:"]
+        for t in list(memory.turns):
+            lines.append(f"  - {t['role']}: ({t.get('intent')}) {t.get('text')}")
+        return {"response": "\n".join(lines), "record": True}
+
+    if normalized == "/use_llm_summary":
+        parts = user_input.strip().split()
+        if len(parts) > 1 and parts[1].lower() in {"off", "false", "0", "no"}:
+            memory.enable_llm_summary(False)
+            return {"response": "> LLM summarization disabled.", "record": True}
+
+        memory.enable_llm_summary(True)
+        if memory._llm is None:
+            return {"response": "> LLM summary enabled but Gemini is unavailable or GOOGLE_API_KEY is missing.", "record": True}
+        return {"response": "> LLM summarization enabled.", "record": True}
+
+    if normalized.startswith("/use_llm_summary"):
+        parts = user_input.strip().split()
+        if len(parts) > 1 and parts[1].lower() in {"off", "false", "0", "no"}:
+            memory.enable_llm_summary(False)
+            return {"response": "> LLM summarization disabled.", "record": True}
+
+        memory.enable_llm_summary(True)
+        if memory._llm is None:
+            return {"response": "> LLM summary enabled but Gemini is unavailable or GOOGLE_API_KEY is missing.", "record": True}
+        return {"response": "> LLM summarization enabled.", "record": True}
+
+    if normalized == "/test_gemini":
+        lines = ["> Testing Gemini connection...", f"> Gemini model: {GEMINI_MODEL_NAME}"]
+        try:
+            test_llm = create_gemini_llm()
+            if test_llm is None:
+                lines.append("> Gemini: LLM object could not be created.")
+            else:
+                lines.append("> Gemini: LLM object created successfully.")
+                try:
+                    if HumanMessage is not None:
+                        test_result = test_llm.invoke([HumanMessage(content="Say OK")])
+                    else:
+                        test_result = test_llm.invoke("Say OK")
+                    lines.append(f"> Gemini response: {getattr(test_result, 'content', test_result)}")
+                except Exception as api_err:
+                    lines.append(f"> Gemini API call failed: {type(api_err).__name__}: {api_err}")
+        except Exception as e:
+            lines.append(f"> Error during test: {type(e).__name__}: {e}")
+        return {"response": "\n".join(lines), "record": True}
+
+    if normalized == "/summarize_now":
+        out = memory.summarize_now_with_llm()
+        if out:
+            return {"response": f"> Summary updated via LLM:\n> {out}", "record": True}
+        return {"response": "> Could not summarize via LLM (disabled, missing API key, or error).", "record": True}
+
+    if normalized == "/clear":
+        memory.clear()
+        return {"response": "> Session memory cleared.", "record": False}
+
+    return None
+
+
 def _handle_special_intents(intent):
     now = datetime.now()
     if intent == "ask_time":
@@ -474,6 +571,19 @@ def give_response(intent, memory=None):
 
 
 def chat_once(user_input, memory):
+    command_response = _handle_command(user_input, memory)
+    if command_response is not None:
+        if command_response.get("record", True):
+            memory.remember_user(user_input, "command")
+            memory.remember_bot(command_response["response"], "command")
+        return {
+            "response": command_response["response"],
+            "intent": "command",
+            "confidence": 1.0,
+            "margin": 1.0,
+            "rankings": [("command", 1.0)],
+        }
+
     pending_response = _continue_pending_flow(user_input, memory)
     if pending_response:
         memory.remember_user(user_input, "pending_input")
@@ -566,59 +676,10 @@ def chatbot():
             print("> Thanks for chatting. See you next time.")
             return
 
-        if normalized in COMMANDS:
-            if normalized == "/about":
-                print("> I am an intent-based chatbot powered by TF-IDF + Logistic Regression.")
-            elif normalized == "/memory":
-                print(f"> {memory.summary()}")
-            elif normalized == "/memory_full":
-                # Show detailed recent turns and condensed history
-                print(f"> Summary: {memory.summary_text or 'No summary'}")
-                print("> Recent turns:")
-                for t in list(memory.turns):
-                    print(f"  - {t['role']}: ({t.get('intent')}) {t.get('text')}")
-            elif normalized == "/use_llm_summary":
-                # Toggle LLM summarization on/off
-                # Accept forms: "/use_llm_summary" to toggle on, or "/use_llm_summary off" to disable
-                parts = user_input.strip().split()
-                if len(parts) > 1 and parts[1].lower() in {"off", "false", "0", "no"}:
-                    memory.enable_llm_summary(False)
-                    print("> LLM summarization disabled.")
-                else:
-                    memory.enable_llm_summary(True)
-                    if memory._llm is None:
-                        print("> LLM summary enabled but Gemini is unavailable or GOOGLE_API_KEY is missing.")
-                    else:
-                        print("> LLM summarization enabled.")
-            elif normalized == "/test_gemini":
-                print("> Testing Gemini connection...")
-                print(f"> Gemini model: {GEMINI_MODEL_NAME}")
-                try:
-                    test_llm = create_gemini_llm()
-                    if test_llm is None:
-                        print("> Gemini: LLM object could not be created.")
-                    else:
-                        print("> Gemini: LLM object created successfully.")
-                        try:
-                            if HumanMessage is not None:
-                                test_result = test_llm.invoke([HumanMessage(content="Say OK")])
-                            else:
-                                test_result = test_llm.invoke("Say OK")
-                            print(f"> Gemini response: {getattr(test_result, 'content', test_result)}")
-                        except Exception as api_err:
-                            print(f"> Gemini API call failed: {type(api_err).__name__}: {api_err}")
-                except Exception as e:
-                    print(f"> Error during test: {type(e).__name__}: {e}")
-            elif normalized == "/summarize_now":
-                out = memory.summarize_now_with_llm()
-                if out:
-                    print("> Summary updated via LLM:")
-                    print(f"> {out}")
-                else:
-                    print("> Could not summarize via LLM (disabled, missing API key, or error).")
-            elif normalized == "/clear":
-                memory.clear()
-                print("> Session memory cleared.")
+        if normalized in COMMANDS or normalized.startswith("/use_llm_summary"):
+            command_output = _handle_command(user_input, memory)
+            if command_output is not None:
+                print(command_output["response"])
             else:
                 _render_help()
             continue

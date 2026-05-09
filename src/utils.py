@@ -2,7 +2,10 @@ import json
 import os
 import re
 from pathlib import Path
-from preprocessing import clean_texts
+try:
+    from .preprocessing import clean_texts
+except ImportError:
+    from preprocessing import clean_texts
 
 
 def camel_to_snake(name: str) -> str:

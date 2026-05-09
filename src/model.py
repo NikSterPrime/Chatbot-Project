@@ -3,8 +3,12 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 
-from utils import exact_pattern_to_tag, labels, texts
-from preprocessing import clean_texts
+try:
+    from .utils import exact_pattern_to_tag, labels, texts
+    from .preprocessing import clean_texts
+except ImportError:
+    from utils import exact_pattern_to_tag, labels, texts
+    from preprocessing import clean_texts
 
 vectoriser = TfidfVectorizer(
     ngram_range=(1, 3),
