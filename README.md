@@ -142,12 +142,3 @@ If a secret (like an API key) was ever pushed to a public remote, rotate the key
 
 - The backend exposes a `/api/health` endpoint for quick checks.
 - The project uses package-safe relative imports so you can run the API as `python -m uvicorn src.web_api:app` and still run `python src/main.py` for the CLI chatbot.
-
---
-
-If you'd like, I can:
-
-- Add a small diagnostics endpoint that returns whether the LLM API key is loaded (boolean) so the frontend can display a more explicit message (no secrets returned).
-- Prepare git-filter-repo or BFG commands tailored to your repo to purge `src/.env` from history.
-
-Thanks — enjoy building! 🎯
