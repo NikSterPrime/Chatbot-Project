@@ -2,3 +2,4 @@
 src/.env
 .venv/
 __pycache__/
+data/best_podcast_train.csv

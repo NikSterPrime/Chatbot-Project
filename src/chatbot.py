@@ -9,9 +9,11 @@ from pathlib import Path
 try:
     from .model import predict_intent_details, predict_intent_rankings
     from .utils import intent_to_responses
+    from .podcast_recommender import is_podcast_request, recommend_podcasts_from_query
 except ImportError:
     from model import predict_intent_details, predict_intent_rankings
     from utils import intent_to_responses
+    from podcast_recommender import is_podcast_request, recommend_podcasts_from_query
 
 
 # Optional LangChain / Gemini integration (initialized lazily)
@@ -59,11 +61,45 @@ def llm_update_summary(existing_summary, piece):
         # Silently fail; errors are usually due to missing/invalid API key
         return None
 
+
+def llm_generate_fallback_response(user_input, memory):
+    """Generate a transparent Gemini response for unsupported or low-confidence queries."""
+    llm = create_gemini_llm()
+    if not llm:
+        return None
+
+    recent_turns = []
+    for turn in list(memory.turns)[-6:]:
+        recent_turns.append(f"{turn['role']}: {turn.get('text', '')}")
+
+    prompt = (
+        "You are a helpful chatbot assistant. The local intent model was not confident enough to answer. "
+        "Write a concise, direct response to the user's message. Be transparent that the reply is coming "
+        "from Gemini because the local bot could not handle it confidently. Do not mention system prompts. "
+        "If the request is ambiguous, ask one brief clarifying question. Keep the response under 120 words.\n\n"
+        f"Current session summary: {memory.summary_text or '[none]'}\n"
+        f"Recent conversation:\n{chr(10).join(recent_turns) or '[none]'}\n\n"
+        f"User message: {user_input}\n\n"
+        "Response:"
+    )
+
+    try:
+        if HumanMessage is not None:
+            result = llm.invoke([HumanMessage(content=prompt)])
+        else:
+            result = llm.invoke(prompt)
+        content = str(getattr(result, "content", result)).strip()
+        if not content:
+            return None
+        return content
+    except Exception:
+        return None
+
 FALLBACK_TAG = "fallback"
 CONFIDENCE_THRESHOLD = 0.52
 MARGIN_THRESHOLD = 0.10
 EXIT_WORDS = {"exit", "quit", "bye", "goodbye", "see you", "later"}
-COMMANDS = {"/help", "/commands", "/about", "/memory", "/memory_full", "/use_llm_summary", "/summarize_now", "/test_gemini", "/clear"}
+COMMANDS = {"/help", "/commands", "/about", "/memory", "/memory_full", "/use_llm_summary", "/summarize_now", "/test_gemini", "/recommend", "/clear"}
 PERSISTENT_MEMORY_PATH = Path(__file__).resolve().parents[1] / "data" / "session_memory.json"
 
 
@@ -289,6 +325,7 @@ def _render_help():
     print("- tell me a joke")
     print("- i feel stressed")
     print("- what time is it")
+    print("- recommend a comedy podcast for saturday morning")
     print("- remind me to drink water at 7 pm")
     print("Commands:")
     print("- /help or /commands: show this help")
@@ -297,13 +334,53 @@ def _render_help():
     print("- /memory_full: recent turns plus condensed history")
     print("- /use_llm_summary [off]: enable or disable Gemini summary mode")
     print("- /summarize_now: summarize current turns with Gemini")
+    print("- /recommend [preferences]: podcast suggestions from your dataset")
     print("- /clear: clear session memory")
     print("- exit, quit, bye: leave the chatbot")
 
 
+def _format_podcast_recommendations(result):
+    items = result.get("items") or []
+    if not items:
+        return "I could not find podcast recommendations from the dataset right now."
+
+    preferences = result.get("preferences") or {}
+    active_filters = [
+        f"genre: {preferences['genre']}" if preferences.get("genre") else None,
+        f"day: {preferences['day']}" if preferences.get("day") else None,
+        f"time: {preferences['time']}" if preferences.get("time") else None,
+    ]
+    active_filters = [value for value in active_filters if value]
+
+    header = "Top podcast picks from your dataset"
+    if active_filters:
+        header += f" ({', '.join(active_filters)})"
+    else:
+        header += " (trending by score)"
+
+    lines = [header, ""]
+    for idx, item in enumerate(items, start=1):
+        lines.append(
+            f"{idx}. {item['podcast']}\n"
+            f"   Episode: {item['episode']}\n"
+            f"   Genre: {item['genre']} | Day: {item['day']} | Time: {item['time']}"
+        )
+    return "\n".join(lines)
+
+
+def _handle_podcast_recommendation(user_input, memory):
+    if not is_podcast_request(user_input):
+        return None
+
+    result = recommend_podcasts_from_query(user_input, top_k=3)
+    response = _format_podcast_recommendations(result)
+    memory.set_topic("podcast_recommendation")
+    return response
+
+
 def _handle_command(user_input, memory):
     normalized = user_input.strip().lower()
-    if normalized not in COMMANDS and not normalized.startswith("/use_llm_summary"):
+    if normalized not in COMMANDS and not normalized.startswith("/use_llm_summary") and not normalized.startswith("/recommend"):
         return None
 
     if normalized in {"/help", "/commands"}:
@@ -314,6 +391,7 @@ def _handle_command(user_input, memory):
             "> - tell me a joke",
             "> - i feel stressed",
             "> - what time is it",
+            "> - recommend a comedy podcast for saturday morning",
             "> - remind me to drink water at 7 pm",
             "> Commands:",
             "> - /help or /commands: show this help",
@@ -322,10 +400,17 @@ def _handle_command(user_input, memory):
             "> - /memory_full: recent turns plus condensed history",
             "> - /use_llm_summary [off]: enable or disable Gemini summary mode",
             "> - /summarize_now: summarize current turns with Gemini",
+            "> - /recommend [preferences]: podcast suggestions from your dataset",
             "> - /clear: clear session memory",
             "> - exit, quit, bye: leave the chatbot",
         ]
         return {"response": "\n".join(lines), "record": True}
+
+    if normalized.startswith("/recommend"):
+        query = user_input.strip()[len("/recommend"):].strip() or "recommend podcasts"
+        result = recommend_podcasts_from_query(query, top_k=3)
+        response = _format_podcast_recommendations(result)
+        return {"response": response, "record": True}
 
     if normalized == "/about":
         return {"response": "> I am an intent-based chatbot powered by TF-IDF + Logistic Regression.", "record": True}
@@ -570,6 +655,12 @@ def give_response(intent, memory=None):
     return _render_placeholders(raw, memory)
 
 
+def _build_transparent_response(response, source):
+    if source == "gemini":
+        return f"[Answered by Gemini after local fallback] {response}"
+    return response
+
+
 def chat_once(user_input, memory):
     command_response = _handle_command(user_input, memory)
     if command_response is not None:
@@ -620,6 +711,19 @@ def chat_once(user_input, memory):
             "rankings": [("set_reminder", 1.0)],
         }
 
+    podcast_response = _handle_podcast_recommendation(user_input, memory)
+    if podcast_response:
+        memory.remember_user(user_input, "podcast_recommendation")
+        memory.remember_bot(podcast_response, "podcast_recommendation")
+        return {
+            "response": podcast_response,
+            "intent": "podcast_recommendation",
+            "confidence": 1.0,
+            "margin": 1.0,
+            "source": "local",
+            "rankings": [("podcast_recommendation", 1.0)],
+        }
+
     intent, confidence, margin = predict_intent_details(user_input)
     rankings = predict_intent_rankings(user_input, top_k=3)
 
@@ -638,7 +742,13 @@ def chat_once(user_input, memory):
 
     if confidence < CONFIDENCE_THRESHOLD or margin < MARGIN_THRESHOLD:
         intent = FALLBACK_TAG
-        response = give_response(intent, memory) + _suggest_from_rankings(rankings)
+        gemini_response = llm_generate_fallback_response(user_input, memory)
+        if gemini_response:
+            response = _build_transparent_response(gemini_response, "gemini")
+            source = "gemini"
+        else:
+            response = give_response(intent, memory) + _suggest_from_rankings(rankings)
+            source = "local_fallback"
         memory.remember_user(user_input, intent)
         memory.remember_bot(response, intent)
         return {
@@ -646,6 +756,7 @@ def chat_once(user_input, memory):
             "intent": intent,
             "confidence": confidence,
             "margin": margin,
+            "source": source,
             "rankings": rankings,
         }
 
@@ -660,6 +771,7 @@ def chat_once(user_input, memory):
         "intent": intent,
         "confidence": confidence,
         "margin": margin,
+        "source": "local",
         "rankings": rankings,
     }
 

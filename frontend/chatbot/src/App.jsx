@@ -21,8 +21,21 @@ export default function App() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [filterOptions, setFilterOptions] = useState({ genres: [], days: [], times: [] });
+  const [selectedGenre, setSelectedGenre] = useState('');
+  const [selectedDay, setSelectedDay] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
   const inputRef = useRef(null);
   const chatLogRef = useRef(null);
+
+  useEffect(() => {
+    fetch('/api/podcast-filters')
+      .then((resp) => resp.json())
+      .then((data) => setFilterOptions(data))
+      .catch((_err) => {
+        /* best-effort */
+      });
+  }, []);
 
   useEffect(() => {
     if (!chatLogRef.current) return;
@@ -68,7 +81,12 @@ export default function App() {
         {
           role: 'bot',
           text: data.response,
-          meta: `${data.intent} | confidence ${Number(data.confidence).toFixed(2)}`
+          meta: [
+            `${data.intent} | confidence ${Number(data.confidence).toFixed(2)}`,
+            data.source ? `source ${data.source}` : null
+          ]
+            .filter(Boolean)
+            .join(' | ')
         }
       ]);
     } catch (e) {
@@ -132,6 +150,21 @@ export default function App() {
     window.URL.revokeObjectURL(url);
   }
 
+  async function applyPodcastFilters() {
+    const filters = [];
+    if (selectedGenre) filters.push(selectedGenre);
+    if (selectedDay) filters.push(selectedDay);
+    if (selectedTime) filters.push(selectedTime);
+
+    const query = filters.length > 0
+      ? `recommend ${filters.join(' ')}`
+      : 'recommend podcasts';
+
+    setInput(query);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    inputRef.current?.focus();
+  }
+
   return (
     <div className="app-shell">
       <div className="halo" aria-hidden="true" />
@@ -150,6 +183,65 @@ export default function App() {
             </button>
           </div>
         </header>
+
+        <section className="podcast-filters">
+          <div className="filter-group">
+            <label htmlFor="genre-select">Genre:</label>
+            <select
+              id="genre-select"
+              value={selectedGenre}
+              onChange={(e) => setSelectedGenre(e.target.value)}
+            >
+              <option value="">All Genres</option>
+              {filterOptions.genres.map((genre) => (
+                <option key={genre} value={genre}>
+                  {genre}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label htmlFor="day-select">Day:</label>
+            <select
+              id="day-select"
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(e.target.value)}
+            >
+              <option value="">Any Day</option>
+              {filterOptions.days.map((day) => (
+                <option key={day} value={day}>
+                  {day}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label htmlFor="time-select">Time:</label>
+            <select
+              id="time-select"
+              value={selectedTime}
+              onChange={(e) => setSelectedTime(e.target.value)}
+            >
+              <option value="">Any Time</option>
+              {filterOptions.times.map((time) => (
+                <option key={time} value={time}>
+                  {time}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            className="filter-button"
+            onClick={applyPodcastFilters}
+            disabled={busy}
+            type="button"
+          >
+            Get Recommendations
+          </button>
+        </section>
 
         <section ref={chatLogRef} className="chat-log" aria-live="polite">
           {messages.map((msg, idx) => (

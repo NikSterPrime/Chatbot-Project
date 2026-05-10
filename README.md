@@ -114,7 +114,14 @@ The bot accepts slash commands. These are handled both in the interactive CLI an
 - `/use_llm_summary` — enable LLM summarization (requires valid `GOOGLE_API_KEY` in `src/.env`)
 - `/use_llm_summary off` — disable LLM summarization
 - `/summarize_now` — ask the LLM to summarize current turns
+- `/recommend [preferences]` — return top podcast picks from `data/best_podcast_train.csv`
 - `/clear` — clear session memory
+
+Podcast recommendation examples:
+
+- `recommend podcasts`
+- `recommend a comedy podcast for saturday morning`
+- `/recommend technology evening`
 
 If the frontend responds that the key is missing, confirm `src/.env` contains `GOOGLE_API_KEY` and restart the backend so the FastAPI process loads the new environment.
 

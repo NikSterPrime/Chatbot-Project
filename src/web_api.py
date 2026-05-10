@@ -14,6 +14,11 @@ try:
 except ImportError:
     from chatbot import ChatSessionMemory, chat_once
 
+try:
+    from .podcast_recommender import get_filter_options
+except ImportError:
+    from podcast_recommender import get_filter_options
+
 
 class ChatRequest(BaseModel):
     message: str
@@ -26,6 +31,7 @@ class ChatResponse(BaseModel):
     intent: str
     confidence: float
     margin: float
+    source: str | None = None
 
 
 app = FastAPI(title="Chatbot API", version="1.0.0")
@@ -46,6 +52,11 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/api/podcast-filters")
+def podcast_filters():
+    return get_filter_options()
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest):
     session_id = payload.session_id or str(uuid4())
@@ -61,6 +72,7 @@ def chat(payload: ChatRequest):
         intent=result["intent"],
         confidence=float(result["confidence"]),
         margin=float(result["margin"]),
+        source=result.get("source"),
     )
 
 
