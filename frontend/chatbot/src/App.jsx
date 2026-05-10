@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const SESSION_KEY = 'chatbot_session_id';
 
@@ -22,6 +22,15 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef(null);
+  const chatLogRef = useRef(null);
+
+  useEffect(() => {
+    if (!chatLogRef.current) return;
+    chatLogRef.current.scrollTo({
+      top: chatLogRef.current.scrollHeight,
+      behavior: 'smooth'
+    });
+  }, [messages]);
 
   const canSend = useMemo(() => input.trim().length > 0 && !busy, [input, busy]);
 
@@ -101,6 +110,28 @@ export default function App() {
     }
   }
 
+  function downloadChat() {
+    if (messages.length === 0) return;
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const content = messages
+      .map((msg) => {
+        const label = msg.role === 'user' ? 'User' : 'Bot';
+        return `${label}: ${msg.text}${msg.meta ? `\nMeta: ${msg.meta}` : ''}`;
+      })
+      .join('\n\n');
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `chat-export-${timestamp}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="app-shell">
       <div className="halo" aria-hidden="true" />
@@ -110,12 +141,17 @@ export default function App() {
             <p className="eyebrow">Context-Aware Bot</p>
             <h1>Chatbot Console</h1>
           </div>
-          <button className="ghost" onClick={resetSession} type="button">
-            Reset Session
-          </button>
+          <div>
+            <button className="ghost" onClick={downloadChat} type="button">
+              Download Chat
+            </button>
+            <button className="ghost" onClick={resetSession} type="button">
+              Reset Session
+            </button>
+          </div>
         </header>
 
-        <section className="chat-log" aria-live="polite">
+        <section ref={chatLogRef} className="chat-log" aria-live="polite">
           {messages.map((msg, idx) => (
             <article key={`${msg.role}-${idx}`} className={`bubble ${msg.role}`}>
               <p>{msg.text}</p>

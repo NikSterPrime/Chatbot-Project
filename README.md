@@ -10,7 +10,7 @@ This repository contains a local intent classifier and a small web UI that shows
 
 - Backend: FastAPI app at `src/web_api.py` (default: http://127.0.0.1:8000)
 - Frontend: Vite React app at `frontend/chatbot` (default: http://localhost:5173)
-- One-click launchers added to the repo root: `start-chatbot.bat` and `start-chatbot.ps1`
+- Launchers added to the repo root: `start-chatbot.bat`, `start-chatbot.ps1`, and `start-chatbot-mac.sh`
 
 --
 
@@ -71,6 +71,15 @@ powershell -ExecutionPolicy Bypass -File .\start-chatbot.ps1
 ```
 
 Both launchers open two console windows: one running the FastAPI backend using the project virtual environment Python, and one running the Vite frontend.
+
+For macOS (Terminal):
+
+```bash
+chmod +x ./start-chatbot-mac.sh
+./start-chatbot-mac.sh
+```
+
+The macOS launcher can also be run as `./start-chatbot-mac.sh install` (install dependencies only) or `./start-chatbot-mac.sh run` (run only).
 
 ## Run (manual)
 
